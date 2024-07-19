@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WeedBlazer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #e0f7fa;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            padding: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            padding: 10px;
+            background-color: #004d40;
+            color: white;
+        }
+        .header .title {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .header .time {
+            font-size: 18px;
+        }
+        .header .battery {
+            font-size: 18px;
+        }
+        .content {
+            display: flex;
+            width: 100%;
+            height: 80%;
+            margin-top: 20px;
+        }
+        .left-panel, .right-panel {
+            width: 20%;
+            padding: 10px;
+        }
+        .main-panel {
+            width: 60%;
+            padding: 10px;
+            text-align: center;
+        }
+        .main-panel video {
+            width: 100%;
+            height: auto;
+            border: 1px solid #ccc;
+        }
+        .gps-data {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            background-color: #004d40;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .stats div {
+            width: 45%;
+            text-align: center;
+        }
+        .operation-time-header {
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+        .operation-time {
+            font-size: 24px;
+            margin-top: 10px;
+        }
+        .map {
+            height: 150px;
+        }
+        .button {
+            background-color: red;
+            color: white;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        .weed-info {
+            background-color: #00acc1;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .timer-buttons {
+            margin-top: 10px;
+        }
+        .timer-buttons button {
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">WEEDBLAZER</div>
+            <div class="battery">Battery: <span id="battery">47%</span></div>
+            <div class="time" id="current-time"></div>
+        </div>
+        <div class="content">
+            <div class="left-panel">
+                <div id="map" class="map"></div>
+                <div class="gps-data">Latitude: <span id="latitude">-</span></div>
+                <div class="gps-data">Longitude: <span id="longitude">-</span></div>
+                <div class="operation-time-header">Waktu Operasi</div>
+                <div class="timer-buttons">
+                    <button id="start-btn">Start</button>
+                    <button id="end-btn">End</button>
+                    <button id="reset-btn">Reset</button>
+                </div>
+                <div class="operation-time" id="operation-time">00:00</div>
+            </div>
+            <div class="main-panel">
+                <div>Real-time View</div>
+                <video id="camera-view" autoplay></video>
+            </div>
+            <div class="right-panel">
+                <div class="weed-info">
+                    <div>Gulma: Daun Lebar</div>
+                    <div id="broadleaf-count">0</div>
+                </div>
+                <div class="weed-info">
+                    <div>Gulma: Rumput</div>
+                    <div id="grass-count">0</div>
+                </div>
+                <div class="stats">
+                    <div>Jarak Terkini: <span id="total-distance">0 m</span></div>
+                    <div>Jarak Keseluruhan: <span id="current-distance">0 m</span></div>
+                </div>
+                <div class="stats">
+                    <div>Dideteksi: <span id="detections">0</span></div>
+                    <div>Dibasmi: <span id="disseminations">0</span></div>
+                </div>
+                <button class="button">Emergency</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script>
+        // Initialize the map
+        var map = L.map('map').setView([0, 0], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        var marker = L.marker([0, 0]).addTo(map);
+
+        // Update the current time every second
+        setInterval(() => {
+            const now = new Date();
+            const options = { timeZone: 'Asia/Jakarta', hour12: false };
+            const formattedTime = now.toLocaleString('id-ID', options);
+            document.getElementById('current-time').innerText = formattedTime;
+        }, 1000);
+
+        // Get real-time GPS data from the laptop
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition((position) => {
+                const { latitude, longitude } = position.coords;
+                updateGPSData(latitude, longitude);
+            });
+        } else {
+            alert("Geolocation is not supported by this browser.");
+        }
+
+        // Update GPS data (latitude and longitude)
+        function updateGPSData(latitude, longitude) {
+            document.getElementById('latitude').innerText = latitude.toFixed(6);
+            document.getElementById('longitude').innerText = longitude.toFixed(6);
+            marker.setLatLng([latitude, longitude]);
+            map.setView([latitude, longitude], 13);
+        }
+
+        // Access and display the webcam feed
+        const video = document.getElementById('camera-view');
+
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
+                video.srcObject = stream;
+                video.play();
+            }).catch((error) => {
+                console.error("Error accessing webcam: ", error);
+            });
+        }
+
+        // Timer for operation time
+        let startTime;
+        let timerInterval;
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            startTime = Date.now();
+            timerInterval = setInterval(() => {
+                let elapsedTime = Date.now() - startTime;
+                let seconds = Math.floor(elapsedTime / 1000) % 60;
+                let minutes = Math.floor(elapsedTime / (1000 * 60)) % 60;
+                document.getElementById('operation-time').innerText = 
+                    `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }, 1000);
+        });
+
+        document.getElementById('end-btn').addEventListener('click', () => {
+            clearInterval(timerInterval);
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            clearInterval(timerInterval);
+            document.getElementById('operation-time').innerText = "00:00";
+        });
+
+        // Update battery status
+        function updateBatteryStatus(battery) {
+            const batteryLevel = (battery.level * 100).toFixed(0) + '%';
+            document.getElementById('battery').innerText = batteryLevel;
+            battery.addEventListener('levelchange', () => {
+                const newLevel = (battery.level * 100).toFixed(0) + '%';
+                document.getElementById('battery').innerText = newLevel;
+            });
+        }
+
+        if (navigator.getBattery) {
+            navigator.getBattery().then((battery) => {
+                updateBatteryStatus(battery);
+            });
+        } else {
+            console.log("Battery Status API is not supported on this device.");
+        }
+
+        // Example of updating distances
+        function updateDistances(totalDistance, currentDistance) {
+            document.getElementById('total-distance').innerText = totalDistance + ' m';
+            document.getElementById('current-distance').innerText = currentDistance + ' m';
+        }
+
+        // Example of updating detections and disseminations
+        function updateDetections(detections, disseminations) {
+            document.getElementById('detections').innerText = detections;
+            document.getElementById('disseminations').innerText = disseminations;
+        }
+
+        // Example usage
+        //updateDistances(570, 1374);
+        //updateDetections(762, 756);
+        // updateCameraView('path/to/new/image.png');
+    </script>
+</body>
+</html>
